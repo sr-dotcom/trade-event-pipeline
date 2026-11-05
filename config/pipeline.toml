@@ -1,0 +1,7 @@
+# Settings for the Gold report. The pipeline reads this file. It does not read the generator's config.
+# start_utc must equal [run] start_utc in faults.toml. A test checks that.
+
+[report]
+start_utc = "2026-11-02T14:00:00Z"
+cutoff_minutes = 15             # the report counts trades up to start + this
+first_publish_minutes = 5       # version 1 is published this long after the cut-off

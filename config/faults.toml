@@ -1,0 +1,45 @@
+# Fault rates for the generator. ASSUMED rates, not measured industry figures.
+# All rates are shares of n_events unless the name says otherwise.
+
+[run]
+start_utc = "2026-11-02T14:00:00Z"
+duration_minutes = 30
+late_after_seconds = 300        # is_late = ingest_time > event_time_utc + this
+
+[mix]                           # per trade
+amend_trade_rate = 0.25         # trades with at least 1 AMEND
+second_amend_rate = 0.40        # of those, share with a 2nd AMEND (about 35 AMEND per 100 trades)
+cancel_rate = 0.06
+version_gap_seconds = [10, 600] # time between two versions of one trade
+
+[profile_a]                     # normal day
+duplicate_rate = 0.005
+duplicate_burst_size = 200      # one burst after a reconnect
+out_of_order_rate = 0.02
+out_of_order_seconds = [1, 30]
+late_rate = 0.01
+late_seconds = [60, 900]
+very_late_rate = 0.001
+very_late_seconds = [3600, 21600]
+bad_rate = 0.005
+bad_mix = { missing_field = 0.40, bad_value = 0.35, unknown_reference = 0.25 }
+bad_window_minutes = 2          # one window with many bad records
+bad_window_rate = 0.20          # share of the events in the window
+conflict_count = 3              # same event_id, different content
+outage_minutes = 5              # one outage, events arrive after it ends
+
+[profile_b]                     # stress run: 4 times more of the random faults
+duplicate_rate = 0.02
+duplicate_burst_size = 200
+out_of_order_rate = 0.08
+out_of_order_seconds = [1, 30]
+late_rate = 0.04
+late_seconds = [60, 900]
+very_late_rate = 0.004
+very_late_seconds = [3600, 21600]
+bad_rate = 0.02
+bad_mix = { missing_field = 0.40, bad_value = 0.35, unknown_reference = 0.25 }
+bad_window_minutes = 2
+bad_window_rate = 0.20
+conflict_count = 3
+outage_minutes = 5

@@ -1,0 +1,24 @@
+# secrets: never commit
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.publishsettings
+secrets/
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+# spark / delta local output
+spark-warehouse/
+metastore_db/
+derby.log
+/tmp/
+# os / editor
+.DS_Store
+Thumbs.db
+data/generated/
+data/lake/
