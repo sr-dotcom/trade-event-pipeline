@@ -59,8 +59,8 @@ Every Bronze row ends in exactly one of Silver, Quarantine or Duplicates. The co
 | Source | Status |
 |---|---|
 | A folder of NDJSON files | Used for the local run. Tested. |
-| Event Hubs through the Kafka endpoint | Sender and reader code, tested with fake stand-ins. Never sent to or read from a real Event Hubs. |
-| Event Hubs Capture archive (Avro) | Reader tested on a fake archive built from the Azure documentation. Never read from a real archive. |
+| Event Hubs through the Kafka endpoint | Sender and reader code, tested with fake stand-ins. In an Azure probe, 100 events were sent and read in a batch. No streaming read with a checkpoint yet. |
+| Event Hubs Capture archive (Avro) | Reader tested on a fake archive. In an Azure probe, one real file was read and its 100 rows matched the Kafka rows. No rebuild of the tables from a real archive yet. |
 
 ## Rebuild
 

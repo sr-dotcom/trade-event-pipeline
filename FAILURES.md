@@ -73,3 +73,26 @@ Every real failure: date, what happened, cause, fix.
 - Cause: the pipeline was built and tested on a laptop only. The tests used local folders.
 - Fix: `run()` joins storage addresses as text and checks the checkpoint through Spark. It accepts a streaming DataFrame as input. Spark Connect (serverless) has no JVM handle, so the check does not use one.
 - Test: `tests/test_run_uri.py` (4 tests). The storage address is tested with a `file://` address, not a real `abfss://` one. Red first, but the first red was an import error, so it is weak.
+
+## 2026-11-05 A helper script used the wrong argument name and reported success (fixed)
+- What: a helper script ran `az eventhubs eventhub authorization-rule keys list ... -n NAME`. That command takes `--authorization-rule-name`. Both connection strings came back empty. The secret was not saved, the sender crashed, and the script still printed "Done".
+- Cause: `-n` works for `create` and `show`, not for `keys list`. A PowerShell script with `$ErrorActionPreference = 'Stop'` does not stop on a failed native command.
+- Fix: the script uses `--authorization-rule-name` and checks `$LASTEXITCODE` after each command.
+- Note: the script had no test. It ran once with real Azure.
+
+## 2026-11-05 Probe notebook asked the generator for too few events (fixed)
+- What: check P2 failed with `ValueError: Sample larger than population or is negative`.
+- Cause: the notebook called `generate(n_events=200)`. The generator samples from fixed lists and needs more events. The same error appears on a laptop, so Azure was not the cause.
+- Fix: the notebook asks for 2,000 events, the size the tests use.
+- Test: `tests/test_probe_notebook.py` reads the number from the notebook and runs the generator with it. Red first, with the same error.
+
+## 2026-11-05 A line break in the stored connection string broke the Kafka login (fixed)
+- What: check P3 failed with `Failed to create new KafkaAdminClient`.
+- Cause: the connection string was saved to a Databricks secret through a PowerShell pipe, which adds a line break. Inside the login setting the line break made it invalid. A check on the secret showed whitespace at the end, a length of 173, and a correct start, policy name and host.
+- Fix: `kafka_options` strips whitespace from the connection string.
+- Test: `tests/test_kafka_login.py`. Red first: the output showed the line break inside the setting. Earlier tests used clean strings.
+
+## 2026-11-05 The Databricks workspace delete is slow and leaves a managed group (workaround)
+- What: `az group delete` on the resource group took about 20 minutes, because the workspace stayed in `Deleting`. Afterwards the Databricks managed group was still there.
+- Fix: a direct `az group delete` on the managed group removed it. The same happened in an earlier session.
+- Note: the hub was deleted first, so the hourly meter stopped before the slow step.

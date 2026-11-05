@@ -7,13 +7,27 @@ def kafka_options(namespace, topic, connection_string, shaded=True):
     """Spark Kafka options for Event Hubs. The connection string comes from the caller. It is never stored here.
     On Databricks the Kafka classes carry a `kafkashaded.` prefix (UNVERIFIED on serverless, check on day 5)."""
     module = f"kafkashaded.{LOGIN_MODULE}" if shaded else LOGIN_MODULE
-    jaas = f'{module} required username="$ConnectionString" password="{connection_string}";'
+    # A secret saved through a PowerShell pipe ends with a line break. Inside the login string it makes the setting invalid.
+    jaas = f'{module} required username="$ConnectionString" password="{connection_string.strip()}";'
     return {
         "kafka.bootstrap.servers": f"{namespace}.servicebus.windows.net:9093",
         "subscribe": topic,
         "kafka.security.protocol": "SASL_SSL",
         "kafka.sasl.mechanism": "PLAIN",
         "kafka.sasl.jaas.config": jaas,
+        "startingOffsets": "earliest",
+        "failOnDataLoss": "false",
+    }
+
+
+def kafka_options_service_credential(namespace, topic, credential_name, port=9093):
+    """The fallback login for serverless: a Unity Catalog service credential. No password, no `kafka.sasl.*` options.
+    The Databricks page forbids those options with a service credential. Its example uses port 9092, Event Hubs uses 9093.
+    Which port works is UNVERIFIED, so the probe tries both."""
+    return {
+        "kafka.bootstrap.servers": f"{namespace}.servicebus.windows.net:{port}",
+        "subscribe": topic,
+        "databricks.serviceCredential": credential_name,
         "startingOffsets": "earliest",
         "failOnDataLoss": "false",
     }

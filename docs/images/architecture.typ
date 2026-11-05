@@ -46,5 +46,5 @@
 #v(6pt)
 #grid(columns: 2, gutter: 18pt,
   box(fill: built.transparentize(82%), stroke: built, inset: 4pt)[#note[Built and tested on a laptop, with fake data]],
-  box(fill: unverified.transparentize(82%), stroke: (paint: unverified, dash: "dashed"), inset: 4pt)[#note[Built, tested only with fake or local stand-ins, never run on Azure]],
+  box(fill: unverified.transparentize(82%), stroke: (paint: unverified, dash: "dashed"), inset: 4pt)[#note[Built, tested with stand-ins. Only a 100-event probe ran on Azure.]],
 )

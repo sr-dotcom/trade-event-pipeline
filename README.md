@@ -4,7 +4,7 @@ A trade-event pipeline built with PySpark and Delta Lake, planned for Azure Data
 
 > **Status: work in progress.**
 > The pipeline runs on a laptop and its tests pass.
-> Azure resources were created and deleted with the scripts in `infra/`, and a trivial serverless notebook ran there. The pipeline itself has not run on Azure.
+> A small probe ran on Azure: 100 events, four checks, all passed. See [the probe results](docs/azure-probe-results.md). The Azure resources were deleted afterwards. The full 50,000-event run has not happened on Azure.
 > The [claims table](#claims-and-evidence) says what is proven (PASS) and what is not (UNVERIFIED).
 
 ## Limits
@@ -254,7 +254,7 @@ Prerequisites: steps 1 to 4 of the tutorial. The leak-scan test needs Git.
 
 2. Wait. The full run takes about 9 minutes, because many tests start Spark.
 
-Check that it worked: the last line reports only `passed`, for example `167 passed`. The number grows when tests are added. On Windows, `taskkill` messages can appear before the last line. You can ignore them. Three tests skip when PowerShell is not installed.
+Check that it worked: the last line reports only `passed`, for example `174 passed`. The number grows when tests are added. On Windows, `taskkill` messages can appear before the last line. You can ignore them. Three tests skip when PowerShell is not installed.
 
 ### How to look at a table
 
@@ -434,7 +434,7 @@ To delete only Event Hubs at the end of a session, run `.\infra\teardown.ps1 -Ev
 | Command | What it does | Needs internet |
 |---|---|---|
 | `python -m src.generator.generate --profile A --n 50000 --seed 42` | Writes events and the known answer to `data/generated/A`. Options: `--profile {A,B}`, `--n`, `--seed`, `--out`. | No |
-| `python -m src.generator.send --events FILE --topic trade-events --start 0 --count 100` | Sends events to Event Hubs, all to partition 0, in file order. Needs `confluent-kafka` (not in `requirements.txt`), and the variables `EVENTHUBS_NAMESPACE` and `EVENTHUBS_CONNECTION_STRING`. Tested with a fake producer only. Never run against a real Event Hubs. | Yes |
+| `python -m src.generator.send --events FILE --topic trade-events --start 0 --count 100` | Sends events to Event Hubs, all to partition 0, in file order. Needs `confluent-kafka` (not in `requirements.txt`), and the variables `EVENTHUBS_NAMESPACE` and `EVENTHUBS_CONNECTION_STRING`. Tested with a fake producer. In the Azure probe it delivered 100 events. | Yes |
 | `python -m src.pipeline.run_local` | Builds all tables in `data/lake`. Options: `--events` (a file or a folder of NDJSON files), `--out`. In Python, `run()` also takes a streaming DataFrame and a storage address (`abfss://...`). The storage address is tested with a `file://` address only. | First run only |
 | `python -m src.pipeline.replay` | Deletes the tables, rebuilds them, and compares fingerprints. Options: `--events`, `--out`. | First Spark run only |
 | `python -m scripts.compare` | Compares the tables with the known answer. Options: `--known`, `--lake`. | First Spark run only |
@@ -456,8 +456,9 @@ To delete only Event Hubs at the end of a session, run `.\infra\teardown.ps1 -Ev
 | `config/pipeline.toml` | Settings for the Gold report. |
 | `data/reference/` | Reference lists: books, counterparties, currencies, instruments. All fake. |
 | `infra/` | Azure setup and teardown scripts. |
+| `notebooks/` | The Databricks notebook for the Azure probe. |
 | `tests/` | The tests. They compare output with the generator's known answer. |
-| `docs/` | The architecture page and its diagram. |
+| `docs/` | The architecture page and its diagram, and the Azure probe results. |
 
 Generated data goes to `data/generated/` and `data/lake/`. Git ignores both.
 
@@ -524,7 +525,7 @@ The [architecture page](docs/architecture.md#layers) lists the columns of each t
 - **Version order, not arrival order.** In real feeds, a late message can hold an older version. The newest version must win. The trade-off: every trade needs a version number.
 - **Late events are kept.** The pipeline flags them and never drops them. A late event that changes a published report makes a new numbered Gold version. The trade-off: reports can change after publishing, so each version is kept.
 - **Bronze incremental, the rest recomputed.** Bronze reads only new events. Silver, quarantine, duplicates, current state and the Gold inputs are recomputed from all of Bronze. Recomputing is simple and gives the same answer every time. The trade-off: it does more work than an incremental update.
-- **Micro-batches, not a continuous stream.** The student subscription blocks classic clusters, so the Azure plan uses serverless compute. The pipeline runs micro-batches that stop when all new events are read. That this works on serverless is UNVERIFIED. The project makes no claim of real-time processing.
+- **Micro-batches, not a continuous stream.** The student subscription blocks classic clusters, so the Azure plan uses serverless compute. The pipeline runs micro-batches that stop when all new events are read. A probe showed that a Bronze checkpoint on storage resumes on serverless. A Kafka stream with a checkpoint on serverless is UNVERIFIED. The project makes no claim of real-time processing.
 - **A hash as the Bronze id.** The id is a hash of the raw text, so a rebuild from an archive gives the same ids. The trade-off: two identical lines share an id.
 
 [DECISIONS.md](DECISIONS.md) has the full list. [FAILURES.md](FAILURES.md) lists each real failure and its fix.
@@ -542,14 +543,17 @@ The generator knows the right answer. The tests compare the pipeline output with
 | Gold versions survive between runs | A later run keeps every published version. A changed number becomes a new version. | A second run with a changed input keeps version 1 and adds version 2. The same input again adds nothing. The rebuild is the exception: it deletes Gold. | PASS (local run) | `tests/test_gold_append_only.py` |
 | Bronze reads new files only and resumes from a checkpoint | The second run adds no old events. Silver from incremental Bronze equals Silver from one read. | Equal in 5 tests on the Bronze reader and 3 tests on `run_local`, with a folder source. A Bronze table without a checkpoint is refused. | PASS (local, folder source) | `tests/test_bronze_stream.py`, `tests/test_run_local_stream.py` |
 | A failed micro-batch is redone from the checkpoint | After a failed batch and a rerun, Bronze has every event once | In one test: 6 rows after the failed run, 9 after the rerun, 9 different ids, equal to a clean read. The failure comes before the commit. | PASS (local, folder source) | `tests/test_bronze_crash.py` |
-| Bronze reads from Event Hubs through Kafka | Events arrive with the `ingest_time` rule applied | The options, the `ingest_time` rule, the reader choice and the flow of Kafka-shaped data are tested. The sender is tested with a fake producer. No send to, and no read from, a real Event Hubs. | UNVERIFIED | `tests/test_kafka_read.py`, `tests/test_kafka_stream.py`, `tests/test_send.py` |
-| The pipeline runs on Azure serverless | Same counts as the local run | Not run | UNVERIFIED | None |
+| A batch read from Event Hubs through Kafka works on serverless | Every sent event is read | 100 sent from a laptop, 100 read on serverless (SASL/PLAIN, listen-only policy) | PASS (Azure probe, 100 events) | [Probe results](docs/azure-probe-results.md), P3 |
+| Bronze reads a Kafka stream with a checkpoint | Events arrive with the `ingest_time` rule applied. A second run adds nothing. | The options, the `ingest_time` rule, the reader choice and the flow of Kafka-shaped data are tested with stand-ins. No streaming read with a checkpoint from a real Event Hubs. | UNVERIFIED | `tests/test_kafka_read.py`, `tests/test_kafka_stream.py`, `tests/test_send.py` |
+| A Bronze checkpoint on storage resumes on serverless | The second run reads nothing new | 2,000 events in, second run equal, with a folder source and a Delta checkpoint on ADLS | PASS (Azure probe) | [Probe results](docs/azure-probe-results.md), P2 |
+| The full pipeline runs on Azure serverless | Same counts as the local run | Not run | UNVERIFIED | None |
 | A rebuild from a Capture-format archive gives equal Bronze and Silver | Equal fingerprints | Equal in 3 tests on a fake archive. The archive follows the documented Capture layout, written from general knowledge, not from a real file. | PASS (local fixture) | `tests/test_capture_source.py` |
+| A real Capture file reads and matches the Kafka rows | Same events, and the offset field is known | 100 of 100 matched. `SequenceNumber` equals the Kafka offset. `Offset` does not. | PASS (Azure probe) | [Probe results](docs/azure-probe-results.md), P4 |
 | A rebuild from a real Event Hubs Capture archive gives equal tables | Equal fingerprints | Not run | UNVERIFIED | None |
 
 ### Not proven
 
-- The pipeline on Azure. The setup script created a resource group, storage and a Databricks workspace, and once an Event Hubs namespace. The teardown script deleted them. A trivial serverless notebook ran. No pipeline code ran there.
+- The full pipeline on Azure. The probe ran 100 events and four checks. The 50,000-event run, the comparison with the known answer, the resume proof with a pause, and a rebuild from a real archive did not run on Azure.
 - The end-to-end run and the comparison script on profile B or on other seeds. Profile B is tested for the generator, Silver, current state and Gold only.
 - Behavior with more than one Kafka partition.
 - Recovery after a crash inside a Delta commit, after a killed process, or on serverless. Only a failed micro-batch before the commit is tested.
@@ -558,8 +562,8 @@ The generator knows the right answer. The tests compare the pipeline output with
 
 ## What is next
 
-1. Run the pipeline on Azure serverless and compare it with the known answer.
-2. Read a real Event Hubs topic and a real Capture archive.
+1. Run the full pipeline on Azure serverless with 50,000 events and compare it with the known answer.
+2. Read a Kafka stream with a checkpoint and rebuild the tables from a real Capture archive.
 3. Run the end-to-end run and the comparison on profile B and on other seeds.
 
 ## License

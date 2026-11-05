@@ -217,3 +217,13 @@ One entry per decision: date, choice, why.
 - Decision: `setup.ps1` checks the default subscription by name and stops if it is not "Azure for Students". See FAILURES.md, same date.
 - Why a name and not an ID: the ID is an identifier that stays out of the repo. The name is not secret and it is readable.
 - Limit: it checks the name only. Two subscriptions with the same name would pass.
+
+## 2026-11-05 Match Capture rows to Kafka rows by SequenceNumber
+- Decision: a rebuild from the Capture archive uses `SequenceNumber` when it needs a position. It does not use `Offset`.
+- Why: on 100 real events, `SequenceNumber` equals the Kafka offset for every event, and `Offset` equals it for none (see `docs/azure-probe-results.md`).
+- Limit: one partition and 100 events. Bronze still keys rows by the hash of the text, so a rebuild does not depend on this.
+
+## 2026-11-05 Access for the Azure probe
+- Decision: two policies on the event hub, one that can only send and one that can only listen. The root key is not used. Storage access goes through a managed identity with the role Storage Blob Data Contributor, and the person who sets up Capture needs Storage Blob Data Owner.
+- Decision: the external location was created without file events. Their set-up needs three more roles, among them Storage Account Contributor. The project does not use file events, so the identity keeps the one role it needs.
+- Limit: no denied-access test was run. "Governed" is not claimed, only "access works".
