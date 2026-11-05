@@ -87,6 +87,25 @@ def test_no_event_hubs_switch_leaves_out_every_event_hubs_command():
         assert kept in out
 
 
+def test_only_event_hubs_switch_adds_the_hub_to_an_existing_group_and_names_the_capture_role():
+    """Stage 2 creates storage first, the user grants the Capture role, then the hub. See docs for the Capture permission."""
+    out = dry_run("-OnlyEventHubs")
+    for kept in ("az eventhubs namespace create", "az eventhubs eventhub create"):
+        assert kept in out
+    for left_out in ("az group create", "az storage account create", "az storage container create", "az databricks workspace create"):
+        assert left_out not in out
+    assert "Storage Blob Data Owner" in out  # the user must hold this role first, or Capture fails with "Linked access check failed"
+
+
+def test_the_two_hub_switches_cannot_be_used_together():
+    shell = shutil.which("pwsh") or shutil.which("powershell")
+    if not shell:
+        pytest.skip("PowerShell is not installed")
+    command = f"function az {{ 'fake-subscription' }}; & '{INFRA / 'setup.ps1'}' -Subscription fake-subscription -NoEventHubs -OnlyEventHubs"
+    done = subprocess.run([shell, "-NoProfile", "-Command", command], capture_output=True, text=True, timeout=120, check=False)
+    assert done.returncode != 0 and "az eventhubs" not in done.stdout
+
+
 def test_an_unknown_switch_stops_the_script_instead_of_being_ignored():
     """Without this, a typo such as -NoEventHubz would run the full setup and start Event Hubs billing."""
     shell = shutil.which("pwsh") or shutil.which("powershell")

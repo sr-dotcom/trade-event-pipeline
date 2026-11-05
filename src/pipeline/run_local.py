@@ -19,6 +19,7 @@ from pathlib import Path
 
 from delta.tables import DeltaTable
 from pyspark.sql import functions as F
+from pyspark.sql.utils import AnalysisException
 
 from src.common.reference import load_reference
 from src.common.spark import get_spark
@@ -37,17 +38,37 @@ def load_report_config(path=None):
         return tomllib.load(f)["report"]
 
 
-def run(spark, events_path, out_dir, report=None):
+def _join(base, *parts):
+    """Join path parts. A storage address (abfss://...) keeps its double slash. pathlib would break it."""
+    base = str(base)
+    if "://" in base:
+        return "/".join([base.rstrip("/"), *parts])
+    return str(Path(base, *parts))
+
+
+def _has_files(spark, path):
+    """True if the folder exists and holds a file. Uses Spark, so it works for a local folder and a storage address.
+    It does not use the JVM handle, which Spark Connect (serverless) does not have."""
+    try:
+        return spark.read.format("binaryFile").option("recursiveFileLookup", "true").load(path).limit(1).count() > 0
+    except AnalysisException:  # Spark raises this when the path does not exist
+        return False
+
+
+def run(spark, events, out_dir, report=None):
+    """`events` is a path (a file or a folder of NDJSON) or a streaming DataFrame with a `value` column, such as the Kafka read.
+    `out_dir` is a local folder or a storage address."""
     report = report or load_report_config()
     # Bronze reads new events only and saves its place. Silver, current state and Gold recompute from all of Bronze.
-    bronze_path, checkpoint = Path(out_dir) / "bronze", Path(out_dir) / "_checkpoint" / "bronze"
-    if DeltaTable.isDeltaTable(spark, str(bronze_path)) and not checkpoint.exists():
+    bronze_path, checkpoint = _join(out_dir, "bronze"), _join(out_dir, "_checkpoint", "bronze")
+    if DeltaTable.isDeltaTable(spark, bronze_path) and not _has_files(spark, checkpoint):
         raise RuntimeError(
             f"{bronze_path} exists but has no checkpoint. A new stream would read every event again and double Bronze. "
             "Delete the lake folder, or restore the checkpoint folder."
         )
-    stream_bronze(read_events_stream(spark, events_path), bronze_path, checkpoint)
-    bronze = spark.read.format("delta").load(str(bronze_path))
+    raw = events if hasattr(events, "isStreaming") else read_events_stream(spark, events)
+    stream_bronze(raw, bronze_path, checkpoint)
+    bronze = spark.read.format("delta").load(bronze_path)
     silver, quarantine, duplicates = build_silver(bronze, load_reference())
     current_state = build_current_state(silver)
 
@@ -59,7 +80,7 @@ def run(spark, events_path, out_dir, report=None):
     ).first()[0]
     # Gold is append-only. Start from the versions already published, so a published version is never rewritten.
     # A changed number becomes a new version. The same numbers again make no new version.
-    gold_path = str(Path(out_dir) / "gold_report")
+    gold_path = _join(out_dir, "gold_report")
     published = spark.read.format("delta").load(gold_path) if DeltaTable.isDeltaTable(spark, gold_path) else empty_gold(spark)
     gold = published
     for as_of in (first_publish.strftime(TIME_FMT), last_ingest):
@@ -76,9 +97,9 @@ def run(spark, events_path, out_dir, report=None):
         ("current_state", current_state),
     )
     for name, df in tables:
-        df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").save(str(Path(out_dir) / name))
+        df.write.format("delta").mode("overwrite").option("overwriteSchema", "true").save(_join(out_dir, name))
     new_versions.write.format("delta").mode("append").save(gold_path)
-    read = lambda name: spark.read.format("delta").load(str(Path(out_dir) / name))
+    read = lambda name: spark.read.format("delta").load(_join(out_dir, name))
     counts = {
         "events_in": read("bronze").count(),
         "silver": read("silver").count(),

@@ -67,3 +67,9 @@ Every real failure: date, what happened, cause, fix.
 - What: a review found that Windows PowerShell 5.1 writes UTF-16 when you redirect output with `>`. The tool read every file as UTF-8, so a UTF-16 file was not cleaned, and no warning appeared.
 - Fix: the tool detects a UTF-16 byte order mark and decodes the file as UTF-16.
 - Test: `test_a_utf16_file_from_windows_powershell_is_cleaned_too` (red first, green after).
+
+## 2026-11-05 Near miss: `run()` would have broken storage addresses (fixed before any Azure run)
+- What: a read of `run_local.py` for the Azure plan found two faults. `run()` joined paths with `pathlib`, which turns `abfss://CONTAINER/x` into `abfss:/CONTAINER/x` (one slash lost). It also asked the local disk whether the checkpoint folder exists. Both work on a laptop and fail on storage. It could read only a path, so no run function could use the Kafka reader.
+- Cause: the pipeline was built and tested on a laptop only. The tests used local folders.
+- Fix: `run()` joins storage addresses as text and checks the checkpoint through Spark. It accepts a streaming DataFrame as input. Spark Connect (serverless) has no JVM handle, so the check does not use one.
+- Test: `tests/test_run_uri.py` (4 tests). The storage address is tested with a `file://` address, not a real `abfss://` one. Red first, but the first red was an import error, so it is weak.

@@ -5,12 +5,14 @@
 param(
     [switch]$Go,
     [switch]$NoEventHubs,   # Stage 1: storage and workspace only. Event Hubs bills by the hour.
+    [switch]$OnlyEventHubs, # Stage 2: add the hub to the group that already exists. Run after -NoEventHubs.
     [string]$Subscription = 'Azure for Students',   # the budget alert lives here. The script stops in any other one.
     [string]$Location = 'francecentral',
     [string]$Owner = 'student',
     [int]$DeleteInDays = 7
 )
 $ErrorActionPreference = 'Stop'
+if ($NoEventHubs -and $OnlyEventHubs) { throw 'Use -NoEventHubs or -OnlyEventHubs, not both.' }
 
 $Rg = 'rg-trade-pipeline'
 $StoragePrefix = 'sttradepipe'
@@ -43,14 +45,19 @@ function Run {
 
 if (-not $Go) { Write-Host "DRY RUN. Nothing is created. Add -Go to create.`n" }
 
+if (-not $OnlyEventHubs) {
 Run az group create --name $Rg --location $Location --tags $Tags
 Run az storage account create --name $St --resource-group $Rg --location $Location --sku Standard_LRS --kind StorageV2 --hns true --tags $Tags
 Run az storage container create --name archive --account-name $St --auth-mode key
+}
 if (-not $NoEventHubs) {
+Write-Host "Capture needs you to hold the role 'Storage Blob Data Owner' on storage account $St. Without it the hub create fails with 'Linked access check failed'."
 Run az eventhubs namespace create --name $Ns --resource-group $Rg --location $Location --sku Standard --capacity 1 --enable-kafka true --tags $Tags
 Run az eventhubs eventhub create --name $Hub --namespace-name $Ns --resource-group $Rg --partition-count 2 --enable-capture true --capture-interval 60 --skip-empty-archives true --destination-name EventHubArchive.AzureBlockBlob --storage-account $St --blob-container archive
 }
+if (-not $OnlyEventHubs) {
 Run az databricks workspace create --name $Workspace --resource-group $Rg --location $Location --sku premium --tags $Tags
+}
 
 if ($NoEventHubs) {
     Write-Host "`nNames: group=$Rg storage=$St workspace=$Workspace delete-by=$DeleteBy"

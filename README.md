@@ -254,7 +254,7 @@ Prerequisites: steps 1 to 4 of the tutorial. The leak-scan test needs Git.
 
 2. Wait. The full run takes about 9 minutes, because many tests start Spark.
 
-Check that it worked: the last line reports only `passed`, for example `157 passed`. The number grows when tests are added. On Windows, `taskkill` messages can appear before the last line. You can ignore them. Three tests skip when PowerShell is not installed.
+Check that it worked: the last line reports only `passed`, for example `167 passed`. The number grows when tests are added. On Windows, `taskkill` messages can appear before the last line. You can ignore them. Three tests skip when PowerShell is not installed.
 
 ### How to look at a table
 
@@ -407,7 +407,7 @@ Prerequisites: the Azure CLI, an Azure subscription, and a budget alert on that 
    .\infra\setup.ps1 -NoEventHubs -Go
    ```
 
-   `-NoEventHubs` creates the resource group, a storage account with a container, and a Databricks workspace. Without it, the script also creates an Event Hubs namespace with Capture. Event Hubs bills by the hour.
+   `-NoEventHubs` creates the resource group, a storage account with a container, and a Databricks workspace. Without it, the script also creates an Event Hubs namespace with Capture. Event Hubs bills by the hour. `-OnlyEventHubs` adds only the Event Hubs namespace and hub to a group that already exists. Capture needs the role `Storage Blob Data Owner` on the storage account, and the script reminds you. You cannot use `-NoEventHubs` and `-OnlyEventHubs` together.
 
 6. When you finish, run the teardown as a dry run. It prints the delete command.
 
@@ -434,7 +434,8 @@ To delete only Event Hubs at the end of a session, run `.\infra\teardown.ps1 -Ev
 | Command | What it does | Needs internet |
 |---|---|---|
 | `python -m src.generator.generate --profile A --n 50000 --seed 42` | Writes events and the known answer to `data/generated/A`. Options: `--profile {A,B}`, `--n`, `--seed`, `--out`. | No |
-| `python -m src.pipeline.run_local` | Builds all tables in `data/lake`. Options: `--events` (a file or a folder of NDJSON files), `--out`. | First run only |
+| `python -m src.generator.send --events FILE --topic trade-events --start 0 --count 100` | Sends events to Event Hubs, all to partition 0, in file order. Needs `confluent-kafka` (not in `requirements.txt`), and the variables `EVENTHUBS_NAMESPACE` and `EVENTHUBS_CONNECTION_STRING`. Tested with a fake producer only. Never run against a real Event Hubs. | Yes |
+| `python -m src.pipeline.run_local` | Builds all tables in `data/lake`. Options: `--events` (a file or a folder of NDJSON files), `--out`. In Python, `run()` also takes a streaming DataFrame and a storage address (`abfss://...`). The storage address is tested with a `file://` address only. | First run only |
 | `python -m src.pipeline.replay` | Deletes the tables, rebuilds them, and compares fingerprints. Options: `--events`, `--out`. | First Spark run only |
 | `python -m scripts.compare` | Compares the tables with the known answer. Options: `--known`, `--lake`. | First Spark run only |
 | `python -m scripts.leak_scan` | Scans tracked files for secrets and identifiers. Needs Git. | No |
@@ -541,7 +542,7 @@ The generator knows the right answer. The tests compare the pipeline output with
 | Gold versions survive between runs | A later run keeps every published version. A changed number becomes a new version. | A second run with a changed input keeps version 1 and adds version 2. The same input again adds nothing. The rebuild is the exception: it deletes Gold. | PASS (local run) | `tests/test_gold_append_only.py` |
 | Bronze reads new files only and resumes from a checkpoint | The second run adds no old events. Silver from incremental Bronze equals Silver from one read. | Equal in 5 tests on the Bronze reader and 3 tests on `run_local`, with a folder source. A Bronze table without a checkpoint is refused. | PASS (local, folder source) | `tests/test_bronze_stream.py`, `tests/test_run_local_stream.py` |
 | A failed micro-batch is redone from the checkpoint | After a failed batch and a rerun, Bronze has every event once | In one test: 6 rows after the failed run, 9 after the rerun, 9 different ids, equal to a clean read. The failure comes before the commit. | PASS (local, folder source) | `tests/test_bronze_crash.py` |
-| Bronze reads from Event Hubs through Kafka | Events arrive with the `ingest_time` rule applied | The options, the `ingest_time` rule, the reader choice and the flow of Kafka-shaped data are tested. No read from a real Event Hubs. | UNVERIFIED | `tests/test_kafka_read.py`, `tests/test_kafka_stream.py` |
+| Bronze reads from Event Hubs through Kafka | Events arrive with the `ingest_time` rule applied | The options, the `ingest_time` rule, the reader choice and the flow of Kafka-shaped data are tested. The sender is tested with a fake producer. No send to, and no read from, a real Event Hubs. | UNVERIFIED | `tests/test_kafka_read.py`, `tests/test_kafka_stream.py`, `tests/test_send.py` |
 | The pipeline runs on Azure serverless | Same counts as the local run | Not run | UNVERIFIED | None |
 | A rebuild from a Capture-format archive gives equal Bronze and Silver | Equal fingerprints | Equal in 3 tests on a fake archive. The archive follows the documented Capture layout, written from general knowledge, not from a real file. | PASS (local fixture) | `tests/test_capture_source.py` |
 | A rebuild from a real Event Hubs Capture archive gives equal tables | Equal fingerprints | Not run | UNVERIFIED | None |

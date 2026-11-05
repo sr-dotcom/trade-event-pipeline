@@ -59,7 +59,7 @@ Every Bronze row ends in exactly one of Silver, Quarantine or Duplicates. The co
 | Source | Status |
 |---|---|
 | A folder of NDJSON files | Used for the local run. Tested. |
-| Event Hubs through the Kafka endpoint | Code and tests with fake data. Never read from a real Event Hubs. |
+| Event Hubs through the Kafka endpoint | Sender and reader code, tested with fake stand-ins. Never sent to or read from a real Event Hubs. |
 | Event Hubs Capture archive (Avro) | Reader tested on a fake archive built from the Azure documentation. Never read from a real archive. |
 
 ## Rebuild
@@ -71,6 +71,7 @@ Locally, the raw event file is the archive. `src/pipeline/replay.py` deletes eve
 | Part | Path |
 |---|---|
 | Generator and known answer | `src/generator/generate.py` |
+| Sender to Event Hubs | `src/generator/send.py` |
 | Bronze, Silver, current state, Gold | `src/pipeline/` |
 | Local run and rebuild | `src/pipeline/run_local.py`, `src/pipeline/replay.py` |
 | Comparison with the known answer | `scripts/compare.py` |

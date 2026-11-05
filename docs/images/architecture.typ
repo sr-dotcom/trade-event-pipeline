@@ -29,7 +29,7 @@
 
   edge((0, 1), (1, 0), "->", label: note[writes], label-side: left),
   edge((1, 0), (2, 1), "->", label: note[local run\ and rebuild], label-side: right),
-  edge((0, 1), (1, 1), "-->", label: note[not built], label-side: right),
+  edge((0, 1), (1, 1), "-->", label: note[sender], label-side: right),
   edge((1, 1), (2, 1), "-->"),
   edge((1, 1), (1, 2), "-->", label: note[Capture], label-side: left),
   edge((1, 2), (2, 1), "-->", label: note[rebuild], label-side: right),
