@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Trade-event pipeline: what ran on Azure",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1076,
+      610
+    ]
+  },
+  "stages": [
+    {
+      "label": "Fake data"
+    },
+    {
+      "label": "Event Hubs"
+    },
+    {
+      "label": "Bronze"
+    },
+    {
+      "label": "Clean tables"
+    },
+    {
+      "label": "Reports and check"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "generator",
+      "type": "backend",
+      "label": "Generator",
+      "sublabel": "PASS · local run",
+      "stage": 0,
+      "row": 1
+    },
+    {
+      "id": "hub",
+      "type": "messagebus",
+      "label": "Event Hubs",
+      "sublabel": "PASS · 1 partition",
+      "stage": 1,
+      "row": 1
+    },
+    {
+      "id": "capture",
+      "type": "cloud",
+      "label": "Capture archive",
+      "sublabel": "PASS · Avro on ADLS",
+      "stage": 1,
+      "row": 3
+    },
+    {
+      "id": "bronze",
+      "type": "database",
+      "label": "Bronze",
+      "sublabel": "PASS · 6 batches",
+      "stage": 2,
+      "row": 1,
+      "height": 140,
+      "yOffset": -41
+    },
+    {
+      "id": "silver",
+      "type": "database",
+      "label": "Silver",
+      "sublabel": "PASS · 48,630 valid",
+      "stage": 3,
+      "row": 0
+    },
+    {
+      "id": "quarantine",
+      "type": "security",
+      "label": "Quarantine",
+      "sublabel": "PASS · 920 + reason",
+      "stage": 3,
+      "row": 1
+    },
+    {
+      "id": "duplicates",
+      "type": "database",
+      "label": "Duplicates",
+      "sublabel": "PASS · 450 repeats",
+      "stage": 3,
+      "row": 2
+    },
+    {
+      "id": "state",
+      "type": "database",
+      "label": "Current state",
+      "sublabel": "PASS · latest wins",
+      "stage": 4,
+      "row": 0
+    },
+    {
+      "id": "gold",
+      "type": "database",
+      "label": "Gold",
+      "sublabel": "PASS · append-only",
+      "stage": 4,
+      "row": 1
+    },
+    {
+      "id": "compare",
+      "type": "external",
+      "label": "Compare script",
+      "sublabel": "PASS · 10 of 10",
+      "stage": 4,
+      "row": 3
+    }
+  ],
+  "flows": [
+    {
+      "from": "generator",
+      "to": "hub",
+      "label": "send",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "from": "hub",
+      "to": "bronze",
+      "label": "Kafka read",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "from": "hub",
+      "to": "capture",
+      "label": "Capture",
+      "variant": "default",
+      "route": "vertical-channel"
+    },
+    {
+      "from": "capture",
+      "to": "bronze",
+      "label": "batch rebuild",
+      "variant": "dashed",
+      "route": "bottom-channel"
+    },
+    {
+      "from": "bronze",
+      "to": "silver",
+      "label": "valid",
+      "variant": "emphasis"
+    },
+    {
+      "from": "bronze",
+      "to": "quarantine",
+      "label": "bad",
+      "variant": "security",
+      "route": "straight",
+      "labelDx": 28
+    },
+    {
+      "from": "bronze",
+      "to": "duplicates",
+      "label": "repeat",
+      "variant": "default"
+    },
+    {
+      "from": "silver",
+      "to": "state",
+      "label": "latest version",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "from": "state",
+      "to": "gold",
+      "label": "report",
+      "variant": "emphasis",
+      "route": "vertical-channel"
+    },
+    {
+      "from": "gold",
+      "to": "compare",
+      "label": "check",
+      "variant": "default",
+      "route": "vertical-channel"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "PASS on Azure (50,000 events)",
+      "items": [
+        "Kafka read with a checkpoint: offsets 0 to 49,999, none twice, none missing",
+        "10 of 10 checks equal the known answer",
+        "Rebuild from the Capture archive: 6 of 6 tables equal"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "UNVERIFIED",
+      "items": [
+        "Access control: no denied-access test was run",
+        "More than one partition",
+        "Cost: not read from an invoice"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "NOT BUILT",
+      "items": [
+        "Real-time stream: the pipeline runs micro-batches",
+        "Rebuild as a stream: serverless blocks the avro stream source"
+      ]
+    }
+  ]
+}

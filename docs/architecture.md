@@ -2,12 +2,15 @@
 
 This page explains how the pipeline is built and why. For commands, see the [README](../README.md).
 
-![Data flow: Generator to Event Hubs to Bronze, then Silver with Quarantine and Duplicates, then Current state and Gold. A compare script checks the tables against a known answer file.](images/architecture.png)
+![Data flow: Generator to Event Hubs to Bronze, then Silver, Quarantine and Duplicates, then Current state, Gold and the Compare script. The Capture archive feeds a batch rebuild of Bronze. Every box is marked PASS. Three cards list what is proven, what is UNVERIFIED and what is NOT BUILT.](images/architecture.png)
 
-The diagram shows two kinds of boxes:
+How to read the picture:
 
-- **Solid blue** boxes are built and tested on a laptop with fake data.
-- **Dashed orange** boxes are built, but were drawn before the full Azure run. They are marked as not run on Azure. The full run has since passed for the Event Hubs read, the tables and the Capture rebuild. See [the run results](azure-run-results.md). The image has not been redrawn yet.
+- Each box says PASS. PASS means the 50,000-event run on Azure (2026-11-05) showed the box working. The Generator is the exception: it ran on a laptop. See [the run results](azure-run-results.md).
+- The dashed purple line is the rebuild. It reads the Capture archive in one batch and builds a new lake. Its tables equal the Kafka lake.
+- The cards under the diagram list what is proven, what is UNVERIFIED and what is NOT BUILT.
+- The source of the picture is `images/architecture.archify.json`. It was drawn with the Archify tool, and the PNG is a screenshot of the result.
+- Small arrowheads on some vertical lines are half-hidden by the box edge. That is a drawing flaw, not a data flow.
 
 ## The idea
 

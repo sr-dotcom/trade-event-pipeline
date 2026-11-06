@@ -2,7 +2,7 @@
 # ruff: noqa: F821, BLE001
 # BLE001: a failed check is a result. The notebook records it and goes on.
 # Azure Stage 2 probe. Four checks, one result line each. Run it on SERVERLESS compute, cell by cell.
-# It is UNVERIFIED code: it has never run on Azure. A failed check is a result. Log it in FAILURES.md. Do not retry in a loop.
+# It ran on Azure on 2026-11-05 and P1 to P4 passed (docs/azure-probe-results.md). A failed check is a result. Log it in FAILURES.md. Do not retry in a loop.
 # Before you run it:
 #   1. Clone this repo into a Databricks Git folder. Put the folder path in `repo_path`.
 #   2. Send 100 events from your laptop: python -m src.generator.send --events FILE --count 100

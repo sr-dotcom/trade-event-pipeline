@@ -1,7 +1,7 @@
 # Databricks notebook source
 # ruff: noqa: F821, BLE001
 # BLE001: a failed check is a result. The notebook records it and goes on.
-# The full Azure run. UNVERIFIED code: it has never run. Use SERVERLESS compute. Run the cells in order.
+# The full Azure run. It ran on 2026-11-05 and R2 to R5 passed (docs/azure-run-results.md). Use SERVERLESS compute. Run the cells in order.
 # Before you start, the repo folder in the workspace holds src/, config/, data/reference/, notebooks/ and known/A/
 # (the two known answer files of the 50,000-event run). The hub holds NO events yet.
 #

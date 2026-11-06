@@ -128,7 +128,7 @@ One entry per decision: date, choice, why.
 
 ## 2026-11-02 Repo hygiene
 - Leak scan: `scripts/leak_scan.py` checks tracked files for GUIDs, key strings, connection strings, workspace URLs, email addresses and Databricks tokens. It prints the rule and the place, never the value. Test-first: `tests/test_leak_scan.py`. Two older tests held fake keys. We split those strings, so the scan stays strict.
-- CI: `.github/workflows/ci.yml` runs the leak scan, ruff and pytest on Linux. It holds no secrets and never calls Azure. A test enforces this. UNVERIFIED: it has not run on GitHub, and the Windows-only code paths are guarded by `sys.platform`.
+- CI: `.github/workflows/ci.yml` runs the leak scan, ruff and pytest on Linux. It holds no secrets and never calls Azure. A test enforces this. It ran on GitHub (Ubuntu) on the first four pushes and passed each time (checked 2026-11-06). The Windows-only code paths are guarded by `sys.platform`.
 - README: a claims table with PASS, NOT BUILT or UNVERIFIED for each claim. The expected output of the quick start is not checked on a clean machine yet.
 - Deferred: a Markdown link check.
 

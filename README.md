@@ -73,7 +73,7 @@ You need:
 - An internet connection. The first Spark run downloads the Delta and Avro libraries from Maven Central.
 - On Windows only: `winutils.exe` and `hadoop.dll`. See [Set up Hadoop files on Windows](#set-up-hadoop-files-on-windows).
 
-This project was built and tested on Windows 11. The file `.github/workflows/ci.yml` runs the tests on Ubuntu, but it has not run yet. Linux and macOS are UNVERIFIED.
+This project was built and tested on Windows 11. The file `.github/workflows/ci.yml` runs the leak scan, ruff and the tests on Ubuntu. It passed on GitHub on each of the first four pushes (checked 2026-11-06). The 50,000-event run and the comparison were done on Windows only. macOS is UNVERIFIED.
 
 #### Set up Hadoop files on Windows
 
@@ -549,7 +549,7 @@ The generator knows the right answer. The tests compare the pipeline output with
 | A run after a pause reads only the new events | The second run starts where the first ended | The first run ended at offset 25,000. The next micro-batch ended at 35,000. Six micro-batches in all. | PASS (Azure run) | [Run results](docs/azure-run-results.md), R2, R3 |
 | `maxOffsetsPerTrigger` limits a micro-batch on a real source | No batch is larger than the limit | Limit 10,000. The end offsets are 10,000, 20,000, 25,000, 35,000, 45,000 and 50,000. | PASS (Azure run) | [Run results](docs/azure-run-results.md) |
 | A Bronze checkpoint on storage resumes on serverless | The second run reads nothing new | 2,000 events in, second run equal, with a folder source and a Delta checkpoint on ADLS | PASS (Azure probe) | [Probe results](docs/azure-probe-results.md), P2 |
-| The full pipeline runs on Azure serverless | Same counts as the local run, and equal to the known answer | 10 of 10 lines PASS: 50,000 in, 48,630 Silver, 920 quarantine, 450 duplicates, 843 late, 34,380 trades, 32,311 active, 0 lost. The Gold table has 3 versions, the local run 2. The latest version is equal. The reason for the third version was not examined. | PASS (Azure run, 50,000 events) | [Run results](docs/azure-run-results.md), R2, R4 |
+| The full pipeline runs on Azure serverless | Same counts as the local run, and equal to the known answer | 10 of 10 lines PASS (50,000 in, 48,630 Silver, 920 quarantine, 450 duplicates, 843 late, 34,380 trades, 32,311 active, 0 lost). The Gold table has 3 versions, the local run 2. The latest version is equal. The reason for the third version was not examined. | PASS (Azure run, 50,000 events) | [Run results](docs/azure-run-results.md), R2, R4 |
 | A rebuild from a Capture-format archive gives equal Bronze and Silver | Equal fingerprints | Equal in 3 tests on a fake archive. The archive follows the documented Capture layout, written from general knowledge, not from a real file. | PASS (local fixture) | `tests/test_capture_source.py` |
 | A real Capture file reads and matches the Kafka rows | Same events, and the offset field is known | 100 of 100 matched. `SequenceNumber` equals the Kafka offset. `Offset` does not. | PASS (Azure probe) | [Probe results](docs/azure-probe-results.md), P4 |
 | A lake built from a Capture-format archive, read as a stream, equals a lake built from the file | Equal fingerprints for Bronze (shared columns), Silver, quarantine, duplicates, current state and the latest Gold version | 6 of 6 equal on 2,000 events. A second run adds nothing. A new file adds only its events. | PASS (local fixture) | `tests/test_lake_compare.py`, `tests/test_capture_source.py` |
@@ -565,13 +565,13 @@ The generator knows the right answer. The tests compare the pipeline output with
 - Behavior with more than one Kafka partition.
 - Recovery after a crash inside a Delta commit, after a killed process, or on serverless. Only a failed micro-batch before the commit is tested.
 - Any result on real data.
-- Linux and macOS. The tests ran on Windows only.
+- macOS. Ubuntu CI passes. The 50,000-event run and the comparison ran on Windows only.
 
 ## What is next
 
 1. Find out why the Gold table has 3 versions on Azure and 2 locally.
 2. Run the end-to-end run and the comparison on profile B and on other seeds.
-3. Run the tests on Linux (the CI file has not run yet).
+3. Run the tests on macOS. Ubuntu already passes in CI.
 
 ## License
 
