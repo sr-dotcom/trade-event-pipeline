@@ -1,5 +1,6 @@
 """Bronze: keep every raw line, bad or not. Add ingest_time and source. Parse nothing else."""
 
+import time
 from pathlib import Path
 
 from pyspark.sql import functions as F
@@ -27,6 +28,21 @@ def read_events_stream(spark, folder, max_files=None):
     return reader.text(str(folder))
 
 
+def wait_for(query, poll_seconds=2, limit_seconds=1800):
+    """Wait until a stream that uses `availableNow` has finished. Raise its error if it failed.
+    It asks `isActive` every few seconds. On Azure serverless, `awaitTermination()` once never returned although the
+    query had finished. It stops after `limit_seconds` (30 minutes) and raises TimeoutError, so a run cannot wait for ever."""
+    waited = 0.0
+    while query.isActive:
+        if waited >= limit_seconds:
+            raise TimeoutError(f"The stream was still active after {limit_seconds} seconds.")
+        time.sleep(poll_seconds)
+        waited += poll_seconds
+    error = query.exception()
+    if error:
+        raise error
+
+
 def stream_bronze(raw_stream, bronze_path, checkpoint_path, source="synthetic"):
     """Add only the new events to the Bronze Delta table, then stop (`availableNow`). Not a continuous stream.
     The checkpoint folder remembers what was read. Lose it, and the next run reads everything again.
@@ -39,8 +55,14 @@ def stream_bronze(raw_stream, bronze_path, checkpoint_path, source="synthetic"):
         .trigger(availableNow=True)
         .start(str(bronze_path))
     )
-    query.awaitTermination()
+    wait_for(query)
     return query
+
+
+def batch_bronze(raw, bronze_path, source="synthetic"):
+    """Rebuild Bronze from a batch DataFrame in one write. It replaces the table, so a second run does not double it.
+    No checkpoint: use it for a rebuild into a new lake, for example from the Capture archive."""
+    to_bronze(raw, source).write.format("delta").mode("overwrite").save(str(bronze_path))
 
 
 def to_bronze(raw, source="synthetic"):

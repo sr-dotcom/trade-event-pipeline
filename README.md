@@ -4,7 +4,8 @@ A trade-event pipeline built with PySpark and Delta Lake, planned for Azure Data
 
 > **Status: work in progress.**
 > The pipeline runs on a laptop and its tests pass.
-> A small probe ran on Azure: 100 events, four checks, all passed. See [the probe results](docs/azure-probe-results.md). The Azure resources were deleted afterwards. The full 50,000-event run has not happened on Azure.
+> A small probe ran on Azure: 100 events, four checks, all passed. See [the probe results](docs/azure-probe-results.md).
+> The full run then sent 50,000 events through Event Hubs to Databricks serverless. The tables equal the known answer, and a lake rebuilt from the Capture archive equals the first lake. See [the run results](docs/azure-run-results.md). The Azure resources were deleted afterwards.
 > The [claims table](#claims-and-evidence) says what is proven (PASS) and what is not (UNVERIFIED).
 
 ## Limits
@@ -254,7 +255,7 @@ Prerequisites: steps 1 to 4 of the tutorial. The leak-scan test needs Git.
 
 2. Wait. The full run takes about 9 minutes, because many tests start Spark.
 
-Check that it worked: the last line reports only `passed`, for example `174 passed`. The number grows when tests are added. On Windows, `taskkill` messages can appear before the last line. You can ignore them. Three tests skip when PowerShell is not installed.
+Check that it worked: the last line reports only `passed`, for example `184 passed`. The number grows when tests are added. On Windows, `taskkill` messages can appear before the last line. You can ignore them. Three tests skip when PowerShell is not installed.
 
 ### How to look at a table
 
@@ -378,7 +379,7 @@ Check that it worked: `run.clean.txt` has labels such as `<guid>`, `<email>` and
 
 ### How to create and delete the Azure resources
 
-The pipeline has never run on Azure. The scripts create the resources it would need.
+The pipeline ran on Azure once (see [the run results](docs/azure-run-results.md)). The scripts create the resources it needs. The scripts do not create the Unity Catalog storage credential and external location. A person makes them in the workspace. They outlive the workspace: delete the external location and the storage credential before you delete the resource group.
 
 Prerequisites: the Azure CLI, an Azure subscription, and a budget alert on that subscription. Create the budget alert in the Azure portal before you create anything. A budget alert does not stop spending, and it can lag by hours. The scripts never sign in for you.
 
@@ -456,7 +457,7 @@ To delete only Event Hubs at the end of a session, run `.\infra\teardown.ps1 -Ev
 | `config/pipeline.toml` | Settings for the Gold report. |
 | `data/reference/` | Reference lists: books, counterparties, currencies, instruments. All fake. |
 | `infra/` | Azure setup and teardown scripts. |
-| `notebooks/` | The Databricks notebook for the Azure probe. |
+| `notebooks/` | The Databricks notebooks: the Azure probe and the full run (both ran). |
 | `tests/` | The tests. They compare output with the generator's known answer. |
 | `docs/` | The architecture page and its diagram, and the Azure probe results. |
 
@@ -525,7 +526,7 @@ The [architecture page](docs/architecture.md#layers) lists the columns of each t
 - **Version order, not arrival order.** In real feeds, a late message can hold an older version. The newest version must win. The trade-off: every trade needs a version number.
 - **Late events are kept.** The pipeline flags them and never drops them. A late event that changes a published report makes a new numbered Gold version. The trade-off: reports can change after publishing, so each version is kept.
 - **Bronze incremental, the rest recomputed.** Bronze reads only new events. Silver, quarantine, duplicates, current state and the Gold inputs are recomputed from all of Bronze. Recomputing is simple and gives the same answer every time. The trade-off: it does more work than an incremental update.
-- **Micro-batches, not a continuous stream.** The student subscription blocks classic clusters, so the Azure plan uses serverless compute. The pipeline runs micro-batches that stop when all new events are read. A probe showed that a Bronze checkpoint on storage resumes on serverless. A Kafka stream with a checkpoint on serverless is UNVERIFIED. The project makes no claim of real-time processing.
+- **Micro-batches, not a continuous stream.** The student subscription blocks classic clusters, so the Azure plan uses serverless compute. The pipeline runs micro-batches that stop when all new events are read. A Kafka stream with a checkpoint on storage ran on serverless with 50,000 events, and a run after a pause resumed at the right offset. The project makes no claim of real-time processing.
 - **A hash as the Bronze id.** The id is a hash of the raw text, so a rebuild from an archive gives the same ids. The trade-off: two identical lines share an id.
 
 [DECISIONS.md](DECISIONS.md) has the full list. [FAILURES.md](FAILURES.md) lists each real failure and its fix.
@@ -544,16 +545,22 @@ The generator knows the right answer. The tests compare the pipeline output with
 | Bronze reads new files only and resumes from a checkpoint | The second run adds no old events. Silver from incremental Bronze equals Silver from one read. | Equal in 5 tests on the Bronze reader and 3 tests on `run_local`, with a folder source. A Bronze table without a checkpoint is refused. | PASS (local, folder source) | `tests/test_bronze_stream.py`, `tests/test_run_local_stream.py` |
 | A failed micro-batch is redone from the checkpoint | After a failed batch and a rerun, Bronze has every event once | In one test: 6 rows after the failed run, 9 after the rerun, 9 different ids, equal to a clean read. The failure comes before the commit. | PASS (local, folder source) | `tests/test_bronze_crash.py` |
 | A batch read from Event Hubs through Kafka works on serverless | Every sent event is read | 100 sent from a laptop, 100 read on serverless (SASL/PLAIN, listen-only policy) | PASS (Azure probe, 100 events) | [Probe results](docs/azure-probe-results.md), P3 |
-| Bronze reads a Kafka stream with a checkpoint | Events arrive with the `ingest_time` rule applied. A second run adds nothing. | The options, the `ingest_time` rule, the reader choice and the flow of Kafka-shaped data are tested with stand-ins. No streaming read with a checkpoint from a real Event Hubs. | UNVERIFIED | `tests/test_kafka_read.py`, `tests/test_kafka_stream.py`, `tests/test_send.py` |
+| Bronze reads a Kafka stream with a checkpoint | Every sent event arrives once, with the `ingest_time` rule applied. | 50,000 events from a real Event Hubs, read in six micro-batches with a checkpoint on storage. Offsets 0 to 49,999, none twice, none missing. | PASS (Azure run, 50,000 events, one partition) | [Run results](docs/azure-run-results.md), R3. Stand-in tests: `tests/test_kafka_read.py`, `tests/test_kafka_stream.py`, `tests/test_send.py` |
+| A run after a pause reads only the new events | The second run starts where the first ended | The first run ended at offset 25,000. The next micro-batch ended at 35,000. Six micro-batches in all. | PASS (Azure run) | [Run results](docs/azure-run-results.md), R2, R3 |
+| `maxOffsetsPerTrigger` limits a micro-batch on a real source | No batch is larger than the limit | Limit 10,000. The end offsets are 10,000, 20,000, 25,000, 35,000, 45,000 and 50,000. | PASS (Azure run) | [Run results](docs/azure-run-results.md) |
 | A Bronze checkpoint on storage resumes on serverless | The second run reads nothing new | 2,000 events in, second run equal, with a folder source and a Delta checkpoint on ADLS | PASS (Azure probe) | [Probe results](docs/azure-probe-results.md), P2 |
-| The full pipeline runs on Azure serverless | Same counts as the local run | Not run | UNVERIFIED | None |
+| The full pipeline runs on Azure serverless | Same counts as the local run, and equal to the known answer | 10 of 10 lines PASS: 50,000 in, 48,630 Silver, 920 quarantine, 450 duplicates, 843 late, 34,380 trades, 32,311 active, 0 lost. The Gold table has 3 versions, the local run 2. The latest version is equal. The reason for the third version was not examined. | PASS (Azure run, 50,000 events) | [Run results](docs/azure-run-results.md), R2, R4 |
 | A rebuild from a Capture-format archive gives equal Bronze and Silver | Equal fingerprints | Equal in 3 tests on a fake archive. The archive follows the documented Capture layout, written from general knowledge, not from a real file. | PASS (local fixture) | `tests/test_capture_source.py` |
 | A real Capture file reads and matches the Kafka rows | Same events, and the offset field is known | 100 of 100 matched. `SequenceNumber` equals the Kafka offset. `Offset` does not. | PASS (Azure probe) | [Probe results](docs/azure-probe-results.md), P4 |
-| A rebuild from a real Event Hubs Capture archive gives equal tables | Equal fingerprints | Not run | UNVERIFIED | None |
+| A lake built from a Capture-format archive, read as a stream, equals a lake built from the file | Equal fingerprints for Bronze (shared columns), Silver, quarantine, duplicates, current state and the latest Gold version | 6 of 6 equal on 2,000 events. A second run adds nothing. A new file adds only its events. | PASS (local fixture) | `tests/test_lake_compare.py`, `tests/test_capture_source.py` |
+| A rebuild from a real Event Hubs Capture archive gives equal tables | Equal fingerprints | 50,000 events in the archive. 6 of 6 tables the same as the Kafka lake. The rebuild reads the archive in one batch, because serverless does not allow `avro` as a streaming source. | PASS (Azure run, 50,000 events) | [Run results](docs/azure-run-results.md), R5 |
 
 ### Not proven
 
-- The full pipeline on Azure. The probe ran 100 events and four checks. The 50,000-event run, the comparison with the known answer, the resume proof with a pause, and a rebuild from a real archive did not run on Azure.
+- More than one run on Azure. The 50,000-event run happened once, with one partition. A repeat run, another seed and more partitions did not run.
+- The cost. The Azure billing data of this subscription type shows no cost values. The hub ran 4 hours 52 minutes.
+- Access control on the external location. No denied-access test was run.
+- A rebuild from the archive as a stream. Serverless does not allow it.
 - The end-to-end run and the comparison script on profile B or on other seeds. Profile B is tested for the generator, Silver, current state and Gold only.
 - Behavior with more than one Kafka partition.
 - Recovery after a crash inside a Delta commit, after a killed process, or on serverless. Only a failed micro-batch before the commit is tested.
@@ -562,9 +569,9 @@ The generator knows the right answer. The tests compare the pipeline output with
 
 ## What is next
 
-1. Run the full pipeline on Azure serverless with 50,000 events and compare it with the known answer.
-2. Read a Kafka stream with a checkpoint and rebuild the tables from a real Capture archive.
-3. Run the end-to-end run and the comparison on profile B and on other seeds.
+1. Find out why the Gold table has 3 versions on Azure and 2 locally.
+2. Run the end-to-end run and the comparison on profile B and on other seeds.
+3. Run the tests on Linux (the CI file has not run yet).
 
 ## License
 

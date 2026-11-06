@@ -5,6 +5,7 @@ into `abfss:/CONTAINER/x`, which is a different address. It also asked the local
 whether the checkpoint exists. See FAILURES.md ("`run()` would have broken storage addresses").
 """
 
+from scripts.compare import compare, load_known, observe
 from src.generator.generate import generate, write_output
 from src.pipeline.run_local import _has_files, _join, run
 
@@ -32,3 +33,13 @@ def test_run_gives_the_same_counts_for_a_streaming_dataframe_and_a_uri_lake(spar
     stream = spark.readStream.option("pathGlobFilter", "events.ndjson").text(str(tmp_path / "gen"))
     by_stream = run(spark, stream, (tmp_path / "lake_b").as_uri())  # a file:// address, like abfss:// has a scheme
     assert by_stream == by_path
+
+
+def test_the_compare_script_reads_a_lake_given_as_a_uri(spark, tmp_path):
+    """scripts/compare.py joined the lake path with pathlib too, so it could not read an abfss:// lake."""
+    records, known = generate(n_events=2_000, seed=7, profile="A")
+    write_output(records, known, tmp_path / "gen")
+    lake = (tmp_path / "lake").as_uri()
+    run(spark, str(tmp_path / "gen" / "events.ndjson"), lake)
+    answer, trades = load_known(tmp_path / "gen")
+    assert all(ok for *_, ok in compare(answer, trades, observe(spark, lake)))

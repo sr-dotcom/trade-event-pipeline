@@ -96,3 +96,38 @@ Every real failure: date, what happened, cause, fix.
 - What: `az group delete` on the resource group took about 20 minutes, because the workspace stayed in `Deleting`. Afterwards the Databricks managed group was still there.
 - Fix: a direct `az group delete` on the managed group removed it. The same happened in an earlier session.
 - Note: the hub was deleted first, so the hourly meter stopped before the slow step.
+
+## 2026-11-05 `compare.py` had the same path bug as `run()` (fixed before use)
+- What: reading `scripts/compare.py` for the full Azure run showed that it joined the lake path with `pathlib`. It could not read an `abfss://` lake. It never failed in practice, because every run so far used a local lake.
+- Fix: it uses the same join as `run()`.
+- Test: `tests/test_run_uri.py`, with a `file://` lake. A real storage address is not tested.
+
+## 2026-11-05 The upload to the workspace left out the `scripts` folder (fixed)
+- What: the full-run notebook failed with `ModuleNotFoundError: No module named 'scripts'`. It failed again after the upload, because the notebook still held the old import state.
+- Cause: the upload copied `src`, `config` and `notebooks`. The notebook imports `scripts.compare`.
+- Fix: upload `scripts` too, then restart the Python process of the notebook.
+- Note: no test checks that the upload list covers the notebook imports. This is still open.
+
+## 2026-11-05 Unity Catalog objects outlived the deleted workspace (workaround)
+- What: when the second workspace was created, the storage credential `sc-...` and the external location already existed from the first sitting.
+- Cause: Unity Catalog objects live in the regional metastore, not in the workspace. Deleting the resource group does not remove them.
+- Fix: the person deleted and recreated them. The teardown now deletes the external location and then the storage credential before the resource group.
+
+## 2026-11-05 `awaitTermination()` never returned on serverless (fixed)
+- What: the second Bronze run (R2) ran for more than 23 minutes and never ended. A second attempt hung the same way. The notebook printed "Listener thread still active, was not able to reconnect". Bronze already held all 50,000 rows and no stream was active.
+- Cause: not found. On Spark Connect (serverless) the call to wait for the end of the query does not return, although the query is finished. A first run of the same code with 25,000 events had finished.
+- Fix: `wait_for` in `src/pipeline/bronze.py` asks `query.isActive` every 2 seconds. It raises a clear error after 30 minutes, and re-raises an error of the query.
+- Test: `tests/test_wait_for.py` (3 tests). Red first with an import error. On Azure the fix worked: R2 finished and passed.
+- Limit: the test cannot show the serverless hang. Only the Azure run showed that the new wait ends.
+
+## 2026-11-05 Serverless does not allow `avro` as a streaming source (fixed)
+- What: the rebuild from the Capture archive (R5) failed with `UNSUPPORTED_STREAMING_SOURCE_PERMISSION_ENFORCED`. The Avro stream reader passed its tests on a laptop.
+- Cause: this Databricks compute type does not allow the `avro` format as a streaming source.
+- Fix: a rebuild starts from an empty lake and needs no checkpoint. `run()` accepts a batch DataFrame and writes Bronze in one batch (`batch_bronze`, mode overwrite). The notebook reads the archive with the batch reader.
+- Test: `tests/test_run_batch.py`. Red first. It checks the counts and that a second run does not double Bronze.
+- Note: the first fix attempt failed with `WRITE_STREAM_NOT_ALLOWED`, because the notebook still had the old module in memory. A restart of the Python process fixed it.
+
+## 2026-11-05 The sitting ran 1 hour 52 minutes past its time limit
+- What: the stop rule was 3 hours after the hub meter started (17:05). The hub was deleted at 21:57, after 4 hours 52 minutes. The cause was the two hung attempts of R2, and a wrong clock in my own messages: they gave guessed times, not times read from the computer.
+- Fix: read the clock with a command before every time statement. Teardown first when a limit is crossed.
+- Cost: not read from an invoice. The estimate for the hub alone is under 1 USD (UNVERIFIED).

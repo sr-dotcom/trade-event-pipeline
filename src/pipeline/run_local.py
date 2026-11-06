@@ -23,7 +23,7 @@ from pyspark.sql.utils import AnalysisException
 
 from src.common.reference import load_reference
 from src.common.spark import get_spark
-from src.pipeline.bronze import read_events_stream, stream_bronze
+from src.pipeline.bronze import batch_bronze, read_events_stream, stream_bronze
 from src.pipeline.current_state import build_current_state
 from src.pipeline.gold import build_report, empty_gold, publish_report
 from src.pipeline.silver import build_silver
@@ -61,13 +61,16 @@ def run(spark, events, out_dir, report=None):
     report = report or load_report_config()
     # Bronze reads new events only and saves its place. Silver, current state and Gold recompute from all of Bronze.
     bronze_path, checkpoint = _join(out_dir, "bronze"), _join(out_dir, "_checkpoint", "bronze")
-    if DeltaTable.isDeltaTable(spark, bronze_path) and not _has_files(spark, checkpoint):
-        raise RuntimeError(
-            f"{bronze_path} exists but has no checkpoint. A new stream would read every event again and double Bronze. "
-            "Delete the lake folder, or restore the checkpoint folder."
-        )
     raw = events if hasattr(events, "isStreaming") else read_events_stream(spark, events)
-    stream_bronze(raw, bronze_path, checkpoint)
+    if raw.isStreaming:
+        if DeltaTable.isDeltaTable(spark, bronze_path) and not _has_files(spark, checkpoint):
+            raise RuntimeError(
+                f"{bronze_path} exists but has no checkpoint. A new stream would read every event again and double Bronze. "
+                "Delete the lake folder, or restore the checkpoint folder."
+            )
+        stream_bronze(raw, bronze_path, checkpoint)
+    else:
+        batch_bronze(raw, bronze_path)  # a rebuild: one batch read, no checkpoint
     bronze = spark.read.format("delta").load(bronze_path)
     silver, quarantine, duplicates = build_silver(bronze, load_reference())
     current_state = build_current_state(silver)

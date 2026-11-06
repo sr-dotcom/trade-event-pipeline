@@ -12,7 +12,7 @@ from pathlib import Path
 from pyspark.sql import functions as F
 
 from src.common.spark import get_spark
-from src.pipeline.run_local import run
+from src.pipeline.run_local import _join, run
 
 TABLES = ("bronze", "silver", "quarantine", "duplicates", "current_state", "gold_report")
 
@@ -64,3 +64,23 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+BRONZE_COMMON = ["value", "ingest_time", "source", "bronze_id"]  # Kafka-only columns are left out
+
+
+def lake_fingerprints(spark, lake):
+    """Fingerprints of a lake, for comparing two lakes built from different sources (file, Kafka, Capture).
+    Bronze: the columns every source has. Gold: only the latest version, without its number, because a lake built
+    in several runs keeps the older versions and a lake built in one run does not."""
+    read = lambda name: spark.read.format("delta").load(_join(lake, name))
+    gold = read("gold_report")
+    latest = gold.agg(F.max("report_version")).first()[0]
+    return {
+        "bronze": fingerprint(read("bronze").select(*BRONZE_COMMON)),
+        "silver": fingerprint(read("silver")),
+        "quarantine": fingerprint(read("quarantine")),
+        "duplicates": fingerprint(read("duplicates")),
+        "current_state": fingerprint(read("current_state")),
+        "gold_latest": fingerprint(gold.filter(F.col("report_version") == latest).drop("report_version")),
+    }

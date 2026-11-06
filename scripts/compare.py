@@ -12,6 +12,8 @@ import json
 import sys
 from pathlib import Path
 
+from src.pipeline.run_local import _join
+
 
 def load_known(known_dir):
     """The summary and the expected current state: trade_id -> (trade_version, action, quantity)."""
@@ -23,7 +25,7 @@ def load_known(known_dir):
 
 def observe(spark, lake):
     """What the pipeline tables hold now."""
-    read = lambda name: spark.read.format("delta").load(str(Path(lake) / name))
+    read = lambda name: spark.read.format("delta").load(_join(lake, name))
     state = read("current_state")
     return {
         "events_in": read("bronze").count(),

@@ -7,7 +7,7 @@ This page explains how the pipeline is built and why. For commands, see the [REA
 The diagram shows two kinds of boxes:
 
 - **Solid blue** boxes are built and tested on a laptop with fake data.
-- **Dashed orange** boxes are built, but tested only with fake or local stand-ins. They have never run on Azure.
+- **Dashed orange** boxes are built, but were drawn before the full Azure run. They are marked as not run on Azure. The full run has since passed for the Event Hubs read, the tables and the Capture rebuild. See [the run results](azure-run-results.md). The image has not been redrawn yet.
 
 ## The idea
 

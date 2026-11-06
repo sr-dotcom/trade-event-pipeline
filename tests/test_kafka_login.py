@@ -15,3 +15,9 @@ def test_whitespace_around_the_connection_string_is_removed_from_the_login_setti
     for noisy in (FAKE + "\r\n", FAKE + "\n", "  " + FAKE + " "):
         assert kafka_options("fake-ns", "t", noisy)["kafka.sasl.jaas.config"] == clean
     assert "\n" not in clean and "\r" not in clean
+
+
+def test_max_offsets_per_trigger_is_set_only_when_asked_for():
+    """It limits the events in one micro-batch. Only a real Kafka source shows the effect (UNVERIFIED on Azure)."""
+    assert "maxOffsetsPerTrigger" not in kafka_options("n", "t", FAKE)
+    assert kafka_options("n", "t", FAKE, max_offsets_per_trigger=5000)["maxOffsetsPerTrigger"] == "5000"

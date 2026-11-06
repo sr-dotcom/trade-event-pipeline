@@ -1,14 +1,15 @@
 """Read the Event Hubs Capture archive (Avro). A rebuild from it must give the same tables as the file source.
 
-The fixture follows the Capture record layout from the Azure docs (general knowledge, UNVERIFIED until Stage 2 reads a real file).
+The fixture follows the Capture record layout. The field names and types match one real Capture file
+(see docs/azure-probe-results.md). The fixture is still synthetic: the map fields are empty and one file holds a few rows.
 """
 
 import json
 
 from pyspark.sql.types import BinaryType, LongType, MapType, StringType, StructField, StructType
 
-from src.pipeline.bronze import read_events, to_bronze
-from src.pipeline.capture_source import read_events_capture
+from src.pipeline.bronze import read_events, stream_bronze, to_bronze
+from src.pipeline.capture_source import read_events_capture, read_events_capture_stream
 from src.pipeline.replay import fingerprint
 from src.pipeline.silver import build_silver
 from tests.helpers import REF, ev
@@ -73,3 +74,16 @@ def test_silver_quarantine_and_duplicates_from_the_archive_equal_the_file_result
     for name, a, b in zip(("silver", "quarantine", "duplicates"), left, right, strict=True):
         assert fingerprint(a) == fingerprint(b), name
     assert tuple(t.count() for t in left) == (3, 2, 1)
+
+
+def test_the_stream_reader_fills_bronze_like_the_batch_reader_and_reads_only_new_files_on_the_next_run(spark, tmp_path):
+    """Capture as an incremental Bronze source: a checkpoint remembers the files. A new file adds only its events."""
+    root = make_archive(spark, tmp_path)
+    bronze, checkpoint = tmp_path / "bronze", tmp_path / "checkpoint"
+    stream_bronze(read_events_capture_stream(spark, str(root)), str(bronze), str(checkpoint))
+    stream_bronze(read_events_capture_stream(spark, str(root)), str(bronze), str(checkpoint))  # nothing new
+    first = spark.read.format("delta").load(str(bronze))
+    assert fingerprint(first) == fingerprint(to_bronze(read_events_capture(spark, str(root))))
+    write_capture(spark, root, 2, [json.dumps(ev("E-9"))])  # one new file
+    stream_bronze(read_events_capture_stream(spark, str(root)), str(bronze), str(checkpoint))
+    assert spark.read.format("delta").load(str(bronze)).count() == len(LINES) + 1

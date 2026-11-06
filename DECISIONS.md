@@ -227,3 +227,21 @@ One entry per decision: date, choice, why.
 - Decision: two policies on the event hub, one that can only send and one that can only listen. The root key is not used. Storage access goes through a managed identity with the role Storage Blob Data Contributor, and the person who sets up Capture needs Storage Blob Data Owner.
 - Decision: the external location was created without file events. Their set-up needs three more roles, among them Storage Account Contributor. The project does not use file events, so the identity keeps the one role it needs.
 - Limit: no denied-access test was run. "Governed" is not claimed, only "access works".
+
+## 2026-11-05 The Azure rebuild builds a new lake and compares it
+- Decision: the rebuild on Azure does not delete tables. It builds a second lake from the Capture archive, then compares the two lakes with `lake_fingerprints`.
+- Why: deleting tables on storage is harder to undo than writing to a new folder. The first lake stays as it is, so a failed rebuild costs nothing.
+- Rule for the comparison: Bronze is compared on the columns every source has (`value`, `ingest_time`, `source`, `bronze_id`), because only Kafka rows carry `kafka_time`, `kafka_partition` and `kafka_offset`. Gold is compared on its latest version without the version number. A lake built in several runs keeps older Gold versions. A lake built in one run does not.
+- Tests: `tests/test_lake_compare.py` builds a lake from a file and a lake from a Capture-format fixture. All six comparisons are equal.
+- Limit: tested on a local fixture of 2,000 events. A real archive is not tested.
+
+## 2026-11-05 The Capture rebuild reads the archive in one batch
+- Decision: `run()` accepts a batch DataFrame and writes Bronze with `batch_bronze` (overwrite, no checkpoint). A stream input keeps the checkpoint and the guard against a Bronze table without a checkpoint.
+- Why: serverless does not allow `avro` as a streaming source. A rebuild reads the whole archive once into a new lake, so a checkpoint has no use. Overwrite makes a second rebuild give the same Bronze, not a doubled one.
+- Result: 6 of 6 tables equal the Kafka lake on 50,000 real events (see `docs/azure-run-results.md`).
+- Limit: the streaming Capture reader stays in the code and in its local test. It cannot run on serverless. Incremental reading of new archive files is not shown on Azure.
+
+## 2026-11-05 Wait for a stream by asking `isActive`
+- Decision: `stream_bronze` waits with a loop over `query.isActive`, 2 seconds apart, with a limit of 1,800 seconds.
+- Why: `awaitTermination()` did not return on serverless. The loop works in both places.
+- Limit: a stream that really runs longer than 30 minutes needs a larger limit.
