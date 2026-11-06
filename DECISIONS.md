@@ -245,3 +245,10 @@ One entry per decision: date, choice, why.
 - Decision: `stream_bronze` waits with a loop over `query.isActive`, 2 seconds apart, with a limit of 1,800 seconds.
 - Why: `awaitTermination()` did not return on serverless. The loop works in both places.
 - Limit: a stream that really runs longer than 30 minutes needs a larger limit.
+
+## 2026-11-06 A lake built in several runs can hold an intermediate Gold version
+- Decision: no change to the code. Each run publishes at the first publish time and at the last ingest time. A run on part of the events can publish a version that a later run on all events then replaces as the latest.
+- Why: Gold is append-only. A published version is never rewritten, even if later events show it was incomplete. That is the rule for reports that people may already have read.
+- Evidence: the 50,000 events on Azure came in two halves and gave 3 versions. The same split on a laptop gave the same 3 versions. The latest version equals the single run in both cases.
+- Test: `tests/test_gold_split_run.py` (characterization test, green at the first run).
+- Limit: the count of versions depends on how the events are split into runs. Only the latest version is compared with the known answer.

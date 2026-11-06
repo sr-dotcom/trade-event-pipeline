@@ -29,17 +29,27 @@ The checkpoint on storage lists six micro-batches. Their end offsets on partitio
 The first attempts failed in four places. [FAILURES.md](../FAILURES.md) has the details.
 
 - The code folder `scripts` was not uploaded, so an import failed.
-- `awaitTermination()` never returned on serverless, although the stream had finished. The run waited 23 minutes twice. A loop that checks `isActive` replaced it.
+- `awaitTermination()` never returned on serverless, although the stream had finished. The first attempt waited more than 23 minutes, and a second attempt hung the same way. A loop that checks `isActive` replaced it.
 - Serverless does not allow the `avro` format as a streaming source. The rebuild reads the archive in one batch instead.
 - A notebook keeps old modules in memory after the files change. A Python restart is needed.
 
 ## Not shown
 
-- The Gold table has 3 versions. The local run has 2. The Gold latest version equals the known answer and the rebuild. The reason for the third version was not examined.
+- The cost. Cost Management showed about 0.05 USD for 1 to 6 November (NAT gateway 0.046, virtual network 0.005, storage 0.0001). It showed no line yet for Event Hubs or Databricks. Cost data lags by hours to days, so this is a lower bound. The hub ran 4 hours 52 minutes.
 - A rebuild from the archive was run as one batch. A rebuild as a stream is not possible on serverless.
 - One partition holds all events. More than one partition is not tested.
-- The cost was not read from an invoice. The billing data of this subscription type shows no cost values.
 - Access control. A denied-access test was not run.
+
+## Why Gold has 3 versions
+
+The local run has 2 Gold versions and the Azure run has 3. This is expected, and a laptop run reproduces it.
+
+- The first half (25,000 events) published version 1 at the first publish time.
+- Late events in that half changed the numbers, so the same run published version 2 at its last ingest time.
+- The second run (all 50,000 events) published version 3. Old versions are never changed.
+- A single run has no half-data stage, so it ends with 2 versions.
+
+The same split run on a laptop gave the same 3 versions in 2 Delta commits. Its latest version equals the single run. `tests/test_gold_split_run.py` pins this: no gap in the version numbers, no fewer versions than a single run, and the same latest report.
 
 ## Resources and teardown
 

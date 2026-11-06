@@ -255,7 +255,7 @@ Prerequisites: steps 1 to 4 of the tutorial. The leak-scan test needs Git.
 
 2. Wait. The full run takes about 9 minutes, because many tests start Spark.
 
-Check that it worked: the last line reports only `passed`, for example `184 passed`. The number grows when tests are added. On Windows, `taskkill` messages can appear before the last line. You can ignore them. Three tests skip when PowerShell is not installed.
+Check that it worked: the last line reports only `passed`, for example `185 passed`. The number grows when tests are added. On Windows, `taskkill` messages can appear before the last line. You can ignore them. Three tests skip when PowerShell is not installed.
 
 ### How to look at a table
 
@@ -549,7 +549,7 @@ The generator knows the right answer. The tests compare the pipeline output with
 | A run after a pause reads only the new events | The second run starts where the first ended | The first run ended at offset 25,000. The next micro-batch ended at 35,000. Six micro-batches in all. | PASS (Azure run) | [Run results](docs/azure-run-results.md), R2, R3 |
 | `maxOffsetsPerTrigger` limits a micro-batch on a real source | No batch is larger than the limit | Limit 10,000. The end offsets are 10,000, 20,000, 25,000, 35,000, 45,000 and 50,000. | PASS (Azure run) | [Run results](docs/azure-run-results.md) |
 | A Bronze checkpoint on storage resumes on serverless | The second run reads nothing new | 2,000 events in, second run equal, with a folder source and a Delta checkpoint on ADLS | PASS (Azure probe) | [Probe results](docs/azure-probe-results.md), P2 |
-| The full pipeline runs on Azure serverless | Same counts as the local run, and equal to the known answer | 10 of 10 lines PASS (50,000 in, 48,630 Silver, 920 quarantine, 450 duplicates, 843 late, 34,380 trades, 32,311 active, 0 lost). The Gold table has 3 versions, the local run 2. The latest version is equal. The reason for the third version was not examined. | PASS (Azure run, 50,000 events) | [Run results](docs/azure-run-results.md), R2, R4 |
+| The full pipeline runs on Azure serverless | Same counts as the local run, and equal to the known answer | 10 of 10 lines PASS (50,000 in, 48,630 Silver, 920 quarantine, 450 duplicates, 843 late, 34,380 trades, 32,311 active, 0 lost). The Gold table has 3 versions, because the 50,000 events came in two halves. A split run on a laptop gives the same 3 versions, and its latest version equals the single run. See [the run results](docs/azure-run-results.md). | PASS (Azure run, 50,000 events) | [Run results](docs/azure-run-results.md), R2, R4 |
 | A rebuild from a Capture-format archive gives equal Bronze and Silver | Equal fingerprints | Equal in 3 tests on a fake archive. The archive follows the documented Capture layout, written from general knowledge, not from a real file. | PASS (local fixture) | `tests/test_capture_source.py` |
 | A real Capture file reads and matches the Kafka rows | Same events, and the offset field is known | 100 of 100 matched. `SequenceNumber` equals the Kafka offset. `Offset` does not. | PASS (Azure probe) | [Probe results](docs/azure-probe-results.md), P4 |
 | A lake built from a Capture-format archive, read as a stream, equals a lake built from the file | Equal fingerprints for Bronze (shared columns), Silver, quarantine, duplicates, current state and the latest Gold version | 6 of 6 equal on 2,000 events. A second run adds nothing. A new file adds only its events. | PASS (local fixture) | `tests/test_lake_compare.py`, `tests/test_capture_source.py` |
@@ -558,7 +558,7 @@ The generator knows the right answer. The tests compare the pipeline output with
 ### Not proven
 
 - More than one run on Azure. The 50,000-event run happened once, with one partition. A repeat run, another seed and more partitions did not run.
-- The cost. The Azure billing data of this subscription type shows no cost values. The hub ran 4 hours 52 minutes.
+- The total cost. Cost Management showed about 0.05 USD for 1 to 6 November (NAT gateway, virtual network, storage) and no line yet for Event Hubs or Databricks. Cost data lags, so this is a lower bound. The hub ran 4 hours 52 minutes.
 - Access control on the external location. No denied-access test was run.
 - A rebuild from the archive as a stream. Serverless does not allow it.
 - The end-to-end run and the comparison script on profile B or on other seeds. Profile B is tested for the generator, Silver, current state and Gold only.
@@ -569,9 +569,9 @@ The generator knows the right answer. The tests compare the pipeline output with
 
 ## What is next
 
-1. Find out why the Gold table has 3 versions on Azure and 2 locally.
-2. Run the end-to-end run and the comparison on profile B and on other seeds.
-3. Run the tests on macOS. Ubuntu already passes in CI.
+1. Run the end-to-end run and the comparison on profile B and on other seeds.
+2. Run the tests on macOS. Ubuntu already passes in CI.
+3. Read the full cost from Cost Management after the data catches up.
 
 ## License
 
