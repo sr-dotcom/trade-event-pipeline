@@ -6,6 +6,8 @@ Why it matters: in trading, a record that is counted twice, or that arrives late
 
 All data is fake. This is a learning project, built in about a week by one person. It is not production code.
 
+Built with an AI coding assistant (Claude Code). The author chose the scope, ran every step on Azure, and reviewed every result.
+
 [![CI](https://github.com/sr-dotcom/trade-event-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/sr-dotcom/trade-event-pipeline/actions/workflows/ci.yml)
 [Interactive walkthrough (2 minutes)](https://sr-dotcom.github.io/trade-event-pipeline/) · [One-page summary (PDF)](docs/summary.pdf) · [Run results](docs/azure-run-results.md) · [Architecture](docs/architecture.md) · [Claims and evidence](docs/claims.md)
 

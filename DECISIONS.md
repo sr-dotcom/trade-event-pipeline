@@ -3,7 +3,7 @@
 One entry per decision: date, choice, why.
 
 ## 2026-10-28 Azure region: francecentral
-- Subscription: Azure for Students. Policy "Allowed resource deployment regions" allows only: westus, francecentral, mexicocentral, belgiumcentral, northcentralus.
+- Subscription: the Azure subscription of the project. Policy "Allowed resource deployment regions" allows only: westus, francecentral, mexicocentral, belgiumcentral, northcentralus.
 - Choice: francecentral. Closest allowed region to Europe. Check Databricks, Event Hubs Standard and Azure SQL are offered there.
 
 ## 2026-10-28 Azure CLI sign-in
@@ -11,7 +11,7 @@ One entry per decision: date, choice, why.
 - Fix: set up MFA, then `az config set core.enable_broker_on_windows=false` and `az login --tenant <tenant id>` (browser flow).
 
 ## 2026-10-28 Budget alert
-- Budget `project-40usd`, $40 monthly, on subscription Azure for Students. Alerts (actual cost) at 50, 75, 100 percent by email.
+- Budget `project-40usd`, $40 monthly, on the project subscription. Alerts (actual cost) at 50, 75, 100 percent by email.
 - Portal scope list did not show the subscription, so it was created with `az rest` (Microsoft.Consumption budgets API). A budget does not stop spending and lags by hours.
 
 ## 2026-10-31 Event Hubs Standard
