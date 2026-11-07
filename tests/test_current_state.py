@@ -1,6 +1,6 @@
 """Current state: for each trade, the event with the highest trade_version.
 
-Version order wins, not arrival order (README.md, "The rules").
+Version order wins, not arrival order (docs/architecture.md, "Rules").
 """
 
 import csv

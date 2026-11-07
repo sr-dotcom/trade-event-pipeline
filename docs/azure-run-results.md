@@ -35,10 +35,24 @@ The first attempts failed in four places. [FAILURES.md](../FAILURES.md) has the 
 
 ## Not shown
 
-- The cost. Cost Management showed about 0.05 USD for 1 to 6 November (NAT gateway 0.046, virtual network 0.005, storage 0.0001). It showed no line yet for Event Hubs or Databricks. Cost data lags by hours to days, so this is a lower bound. The hub ran 4 hours 52 minutes.
+- Where the Databricks cost came from. See [What it cost](#what-it-cost).
 - A rebuild from the archive was run as one batch. A rebuild as a stream is not possible on serverless.
 - One partition holds all events. More than one partition is not tested.
 - Access control. A denied-access test was not run.
+
+## What it cost
+
+The probe and the full run (5 and 6 November, UTC days) cost about 7.2 USD, measured with Azure Cost Management on 2026-11-07: Azure Databricks 6.0, Event Hubs 0.8, NAT gateway 0.4, virtual network 0.1, storage 0.01. All days of the project since 30 October cost about 10.0 USD of a 40 USD budget. The Databricks part probably includes the two hung attempts of R2 and the idle time of the notebook. This was not separated (UNVERIFIED).
+
+| Service | 5 and 6 Nov (probe and full run) |
+|---|---|
+| Azure Databricks (serverless compute) | about 6.0 USD |
+| Event Hubs | about 0.8 USD |
+| NAT gateway | about 0.4 USD |
+| Virtual network | about 0.1 USD |
+| Storage | about 0.01 USD |
+
+The budget alert only sends an email. The teardown after each run is the real cost control.
 
 ## Why Gold has 3 versions
 

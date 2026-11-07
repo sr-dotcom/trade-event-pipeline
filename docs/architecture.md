@@ -1,16 +1,18 @@
 # Architecture
 
-This page explains how the pipeline is built and why. For commands, see the [README](../README.md).
+This page explains how the pipeline is built and why. For commands, see the [guide](guide.md).
 
-![Data flow: Generator to Event Hubs to Bronze, then Silver, Quarantine and Duplicates, then Current state, Gold and the Compare script. The Capture archive feeds a batch rebuild of Bronze. Every box is marked PASS. Three cards list what is proven, what is UNVERIFIED and what is NOT BUILT.](images/architecture.png)
+![Data flow: Generator to Event Hubs to Bronze, then Silver, Quarantine and Duplicates, then Current state, Gold and the Compare script. The Capture archive feeds a batch rebuild of Bronze. Every box is marked PASS. Three cards list what it proved, what it cost and what is not proven.](images/architecture.png)
 
 How to read the picture:
 
 - Each box says PASS. PASS means the 50,000-event run on Azure (2026-11-05) showed the box working. The Generator is the exception: it ran on a laptop. See [the run results](azure-run-results.md).
 - The dashed purple line is the rebuild. It reads the Capture archive in one batch and builds a new lake. Its tables equal the Kafka lake.
-- The cards under the diagram list what is proven, what is UNVERIFIED and what is NOT BUILT.
-- The source of the picture is `images/architecture.archify.json`. It was drawn with the Archify tool, and the PNG is a screenshot of the result.
+- The three cards under the diagram say what it proved, what it cost and what is not proven.
+- The animation in the [interactive walkthrough](index.html) shows the design. The numbers come from the real run, not from live data.
 - Small arrowheads on some vertical lines are half-hidden by the box edge. That is a drawing flaw, not a data flow.
+
+To change the picture, edit `images/architecture.archify.json`. Then build the page with the Archify tool: `node bin/archify.mjs deliver dataflow docs/images/architecture.archify.json docs/index.html --quality showcase`. The PNG is a screenshot of the page.
 
 ## The idea
 

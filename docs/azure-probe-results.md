@@ -55,6 +55,6 @@ Each failure and its fix is in [FAILURES.md](../FAILURES.md): a helper script th
 - The resume proof with a pause between two sends.
 - A rebuild of all tables from a real Capture archive. P4 reads the file and matches rows. It does not rebuild the tables.
 - More than one partition. All events went to partition 0.
-- Cost. No invoice was read. The hub price comes from third-party price lists.
+- Cost. Not read at the time. The full run measured it: see [What it cost](azure-run-results.md#what-it-cost).
 - A denied-access test for the external location.
 - File events for the external location. Their set-up failed on a missing permission, and the project does not use them.

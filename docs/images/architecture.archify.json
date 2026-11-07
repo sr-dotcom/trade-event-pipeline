@@ -2,11 +2,65 @@
   "schema_version": 1,
   "diagram_type": "dataflow",
   "meta": {
-    "title": "Trade-event pipeline: what ran on Azure",
+    "title": "Trade-event pipeline: messy events in, proven result out",
     "quality_profile": "showcase",
     "viewBox": [
       1076,
       610
+    ],
+    "animation": "trace",
+    "views": [
+      {
+        "id": "messy",
+        "label": "1. Messy events arrive",
+        "focus": [
+          "generator",
+          "hub"
+        ],
+        "note": "50,000 fake trade events with duplicates, late events, corrections and bad records. The animation shows the design."
+      },
+      {
+        "id": "delivered",
+        "label": "2. Delivered and archived",
+        "focus": [
+          "hub",
+          "capture",
+          "bronze"
+        ],
+        "note": "Event Hubs delivers every event. Capture also saves each one to storage."
+      },
+      {
+        "id": "cleaned",
+        "label": "3. Cleaned and sorted",
+        "focus": [
+          "bronze",
+          "silver",
+          "quarantine",
+          "duplicates"
+        ],
+        "note": "Good records go to Silver. Bad ones are kept with a reason. Repeats are set aside."
+      },
+      {
+        "id": "reports",
+        "label": "4. Reports with history",
+        "focus": [
+          "silver",
+          "state",
+          "gold"
+        ],
+        "note": "A late event makes a new numbered report version. Old versions never change."
+      },
+      {
+        "id": "proof",
+        "label": "5. Proven, not claimed",
+        "focus": [
+          "gold",
+          "compare",
+          "capture",
+          "bronze"
+        ],
+        "note": "The result equals an answer written before the run. A rebuild from the archive is equal too."
+      }
     ]
   },
   "stages": [
@@ -184,28 +238,29 @@
   "cards": [
     {
       "dot": "emerald",
-      "title": "PASS on Azure (50,000 events)",
+      "title": "What it proved",
       "items": [
-        "Kafka read with a checkpoint: offsets 0 to 49,999, none twice, none missing",
-        "10 of 10 checks equal the known answer",
-        "Rebuild from the Capture archive: 6 of 6 tables equal"
+        "10 of 10 checks match the answer",
+        "Archive rebuild: 6 of 6 equal",
+        "A restart: no duplicates, no gaps"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "What it cost",
+      "items": [
+        "$7 for two Azure runs, $10 in all",
+        "The budget was $40",
+        "Everything deleted after each run"
       ]
     },
     {
       "dot": "amber",
-      "title": "UNVERIFIED",
+      "title": "What is not proven",
       "items": [
-        "Access control: no denied-access test was run",
-        "More than one partition",
-        "Cost: not read from an invoice"
-      ]
-    },
-    {
-      "dot": "rose",
-      "title": "NOT BUILT",
-      "items": [
-        "Real-time stream: the pipeline runs micro-batches",
-        "Rebuild as a stream: serverless blocks the avro stream source"
+        "Self-made test and answer key",
+        "Fake data, one partition",
+        "Not real time, no security test"
       ]
     }
   ]

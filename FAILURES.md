@@ -130,4 +130,4 @@ Every real failure: date, what happened, cause, fix.
 ## 2026-11-05 The sitting ran 1 hour 52 minutes past its time limit
 - What: the stop rule was 3 hours after the hub meter started (17:05). The hub was deleted at 21:57, after 4 hours 52 minutes. The cause was the two hung attempts of R2, and a wrong clock in my own messages: they gave guessed times, not times read from the computer.
 - Fix: read the clock with a command before every time statement. Teardown first when a limit is crossed.
-- Cost: not read from an invoice. The estimate for the hub alone is under 1 USD (UNVERIFIED).
+- Cost: measured on 2026-11-07 with Cost Management. Event Hubs cost about 0.8 USD for the probe and the full run together. Azure Databricks cost about 6.0 USD, more than any estimate we had. The share of the two hung R2 attempts was not separated.
